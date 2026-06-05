@@ -5,11 +5,11 @@ on:
     tags:
       - 'v*'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-release:
@@ -17,26 +17,33 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Set sing-box version
-        id: singbox
+      - name: Install sing-box
         run: |
-          echo "version=v1.10.0" >> "$GITHUB_OUTPUT"
+          sudo bash -c "$(curl -fsSL https://sing-box.sagernet.org/install.sh)"
+        # Скрипт установки sing-box с официального сайта:
+        # он скачивает и ставит бинарник sing-box для Linux с GitHub Releases [web:89].
 
-      - name: Download sing-box
+      - name: Check sing-box version
         run: |
-          curl -fsSL -o sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${{ steps.singbox.outputs.version }}/sing-box-${{ steps.singbox.outputs.version }}-linux-amd64.tar.gz"
-          tar -xzf sing-box.tar.gz
-          mv sing-box-${{ steps.singbox.outputs.version }}-linux-amd64/sing-box ./sing-box
-          chmod +x ./sing-box
+          sing-box version
 
       - name: Compile rule-set
         run: |
-          ./sing-box rule-set compile --output kino-pub.srs kino-pub.json
+          sing-box rule-set compile --output kino-pub.srs kino-pub.json
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: kino-pub.srs
-          generate_release_notes: true
+      - name: Create GitHub Release and upload srs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          # Создаём или обновляем релиз для этого тега
+          gh release create "$TAG" kino-pub.srs \
+            --title "$TAG" \
+            --notes "Binary sing-box rule-set for kino.pub" \
+            --repo "$GITHUB_REPOSITORY" \
+            --generate-notes || \
+          gh release upload "$TAG" kino-pub.srs \
+            --repo "$GITHUB_REP
