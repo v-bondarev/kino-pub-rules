@@ -37,7 +37,6 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
 
-          # если релиз уже есть — обновляем файл
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" kino-pub.srs --clobber --repo "$GITHUB_REPOSITORY"
           else
