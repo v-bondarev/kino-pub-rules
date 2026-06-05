@@ -21,9 +21,7 @@ jobs:
 
       - name: Install sing-box
         run: |
-          sudo bash -c "$(curl -fsSL https://sing-box.sagernet.org/install.sh)"
-        # Скрипт установки sing-box с официального сайта:
-        # он скачивает и ставит бинарник sing-box для Linux с GitHub Releases [web:89].
+          curl -fsSL https://sing-box.app/install.sh | sudo sh
 
       - name: Check sing-box version
         run: |
@@ -33,17 +31,11 @@ jobs:
         run: |
           sing-box rule-set compile --output kino-pub.srs kino-pub.json
 
-      - name: Create GitHub Release and upload srs
+      - name: Create or update GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-
-          # Создаём или обновляем релиз для этого тега
-          gh release create "$TAG" kino-pub.srs \
-            --title "$TAG" \
-            --notes "Binary sing-box rule-set for kino.pub" \
-            --repo "$GITHUB_REPOSITORY" \
-            --generate-notes || \
-          gh release upload "$TAG" kino-pub.srs \
-            --repo "$GITHUB_REP
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            && gh release upload "$TAG" kino-pub.srs --clobber --repo "$GITHUB_REPOSITORY" \
+            || gh release create "$TAG" kino-pub.srs --title "$TAG" --generate-notes --repo "$GITHUB_REPOSITORY"
