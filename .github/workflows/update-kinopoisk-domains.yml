@@ -1,0 +1,111 @@
+name: Update kino.pub domains
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update-domains:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Download source list
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/kinopub -o kinopub_source.txt
+
+      - name: Build kino-pub.json
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          lines = Path("kinopub_source.txt").read_text(encoding="utf-8").splitlines()
+
+          domain_suffix = []
+          domain = []
+          domain_regex = []
+
+          for raw in lines:
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+
+              if "#" in line:
+                  line = line.split("#", 1)[0].strip()
+              if "@" in line:
+                  line = line.split("@", 1)[0].strip()
+
+              if not line:
+                  continue
+
+              if line.startswith("domain:"):
+                  value = line[len("domain:"):].strip()
+                  if value:
+                      domain_suffix.append(value)
+              elif line.startswith("full:"):
+                  value = line[len("full:"):].strip()
+                  if value:
+                      domain.append(value)
+              elif line.startswith("regex:"):
+                  value = line[len("regex:"):].strip()
+                  if value:
+                      domain_regex.append(value)
+              elif line.startswith("keyword:"):
+                  pass
+              elif line.startswith("include:"):
+                  pass
+              else:
+                  domain_suffix.append(line)
+
+          def dedupe(items):
+              seen = set()
+              result = []
+              for item in items:
+                  if item not in seen:
+                      seen.add(item)
+                      result.append(item)
+              return result
+
+          rule = {}
+          if domain_suffix:
+              rule["domain_suffix"] = dedupe(domain_suffix)
+          if domain:
+              rule["domain"] = dedupe(domain)
+          if domain_regex:
+              rule["domain_regex"] = dedupe(domain_regex)
+
+          output = {
+              "version": 3,
+              "rules": [rule]
+          }
+
+          Path("kino-pub.json").write_text(
+              json.dumps(output, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kino-pub.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Auto-update kino-pub domain list"
+          git push
+
