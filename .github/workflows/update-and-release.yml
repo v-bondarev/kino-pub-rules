@@ -62,7 +62,90 @@ jobs:
                   value = line[len("full:"):].strip()
                   if value:
                       domain.append(value)
+              elif line.startswith("regexp:"):
+                  value = line[len("regexp:"):].strip()
+                  if value:
+                      domain_regex.append(value)
               elif line.startswith("regex:"):
                   value = line[len("regex:"):].strip()
-                  if v
+                  if value:
+                      domain_regex.append(value)
+              elif line.startswith("keyword:") or line.startswith("include:"):
+                  pass
+              else:
+                  domain_suffix.append(line)
 
+          def dedupe(items):
+              seen = set()
+              result = []
+              for item in items:
+                  if item not in seen:
+                      seen.add(item)
+                      result.append(item)
+              return result
+
+          rule = {}
+          if domain_suffix:
+              rule["domain_suffix"] = dedupe(domain_suffix)
+          if domain:
+              rule["domain"] = dedupe(domain)
+          if domain_regex:
+              rule["domain_regex"] = dedupe(domain_regex)
+
+          output = {
+              "version": 3,
+              "rules": [rule],
+          }
+
+          Path("kino-pub.json").write_text(
+              json.dumps(output, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Detect changes
+        id: changes
+        run: |
+          git add kino-pub.json
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit updated JSON
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Auto-update kino-pub domain list"
+          git push
+
+      - name: Install sing-box
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -fsSL https://sing-box.app/install.sh | sudo sh
+
+      - name: Compile rule-set
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          sing-box rule-set compile --output kino-pub.srs kino-pub.json
+
+      - name: Create tag
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: tag
+        run: |
+          TAG="auto-$(date -u +'%Y%m%d-%H%M%S')"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" kino-pub.srs \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes "Automated release after kino-pub domain list update." \
+            --repo "$GITHUB_REPOSITORY"
