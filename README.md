@@ -6,7 +6,7 @@
 
 - `kino-pub.json` — исходный source rule-set.
 - `kino-pub.srs` — бинарный rule-set после компиляции.
-- `.github/workflows/release.yml` — GitHub Actions для автоматической сборки и публикации `.srs` в Releases.
+- `.github/workflows/update-and-release.yml` — GitHub Actions для автоматического обновления, сборки и публикации `.srs` в Release `latest`.
 
 ## Структура rule-set
 
@@ -18,24 +18,13 @@
 sing-box rule-set compile --output kino-pub.srs kino-pub.json
 ```
 
-## Публикация на GitHub вручную
+## Постоянная ссылка на `.srs`
 
-1. Создай новый репозиторий, например `kino-pub-rules`.
-2. Загрузи в него `README.md`, `kino-pub.json` и `.github/workflows/release.yml`.
-3. Создай тег и отправь его:
+Workflow публикует свежий `kino-pub.srs` в Release `latest`, перезаписывая asset при каждом обновлении:
 
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/USER/kino-pub-rules.git
-git push -u origin main
-git tag v1.0.0
-git push origin v1.0.0
+```text
+https://github.com/v-bondarev/kino-pub-rules/releases/download/latest/kino-pub.srs
 ```
-
-После пуша тега workflow сам скачает sing-box, соберёт `kino-pub.srs` и приложит его к GitHub Release.
 
 ## Пример подключения в sing-box
 
@@ -47,7 +36,7 @@ git push origin v1.0.0
         "tag": "kino-pub",
         "type": "remote",
         "format": "binary",
-        "url": "https://github.com/USER/kino-pub-rules/releases/download/v1.0.0/kino-pub.srs",
+        "url": "https://github.com/v-bondarev/kino-pub-rules/releases/download/latest/kino-pub.srs",
         "download_detour": "direct"
       }
     ],
@@ -63,7 +52,5 @@ git push origin v1.0.0
 
 ## Обновление
 
-1. Измени `kino-pub.json`.
-2. Закоммить изменения.
-3. Создай новый тег, например `v1.0.1`.
-4. GitHub Actions автоматически пересоберёт и выложит новый `.srs` в новый Release.
+1. Запусти workflow вручную через `Run workflow` или дождись расписания.
+2. GitHub Actions обновит `kino-pub.json`, соберёт `kino-pub.srs` и выложит его по той же ссылке в Release `latest`.

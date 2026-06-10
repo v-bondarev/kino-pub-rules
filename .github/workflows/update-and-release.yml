@@ -131,21 +131,25 @@ jobs:
         run: |
           sing-box rule-set compile --output kino-pub.srs kino-pub.json
 
-      - name: Create tag
+      - name: Update latest tag
         if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
-        id: tag
         run: |
-          TAG="auto-$(date -u +'%Y%m%d-%H%M%S')"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          git tag "$TAG"
-          git push origin "$TAG"
+          TAG="latest"
+          git tag -f "$TAG"
+          git push origin "refs/tags/$TAG" --force
 
-      - name: Create GitHub Release
+      - name: Create or update latest GitHub Release
         if: steps.changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.tag.outputs.tag }}" kino-pub.srs \
-            --title "${{ steps.tag.outputs.tag }}" \
-            --notes "Automated release after kino-pub domain list update." \
-            --repo "$GITHUB_REPOSITORY"
+          TAG="latest"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" kino-pub.srs --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" kino-pub.srs \
+              --title "Latest kino.pub rule-set" \
+              --notes "Automatically built from the current kino.pub domain list." \
+              --repo "$GITHUB_REPOSITORY"
+          fi
